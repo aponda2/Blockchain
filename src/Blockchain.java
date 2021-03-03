@@ -47,6 +47,7 @@ import com.google.gson.GsonBuilder;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
@@ -111,13 +112,13 @@ public class Blockchain {
         }
 
         bce.startListeners();
-        try{ Thread.sleep(1000);} catch(InterruptedException e)
+        try{ Thread.sleep(5000);} catch(InterruptedException e)
         {
             System.out.println("Interrupted: " + e.getMessage());
             Thread.currentThread().interrupt();
         }
 
-        bce.processLocalPatientLedger();
+        //bce.processLocalPatientLedger();
 
         KeyPair mykey;
         byte[] sig;
@@ -142,6 +143,8 @@ public class Blockchain {
             System.out.println(e.getMessage());
         }
 
+
+        bce.broadcastHello();
         /*
         // Print all of the providers supported on this system.
         for(int i = 0; i<Security.getProviders().length; i++) {
@@ -658,21 +661,24 @@ class BCExecutor{
         this.BC = new BCstruct(0);
 
         this.Lfilename = "BlockInput" + pid + ".txt";
-        this.neighs = new BCPeer[2];
+        this.neighs = new BCPeer[3];
 
         this.mykey = SecurityHelper.genKeyPair();
+
+        initializeNeighbors();
     }
 
-    void initializeNeighbors(){
+    private void initializeNeighbors(){
         for (int i = 0; i < this.neighs.length; i++){
             int li = i + 1;
             this.neighs[i] = new BCPeer();
-            neighs[i].hostname = "localhost";
-            neighs[i].ID = li;
-            neighs[i].port = this.keyport - this.pid + li;
-            //neighs[i].pubKey
+            this.neighs[i].hostname = "localhost";
+            this.neighs[i].ID = li;
+            this.neighs[i].port = this.keyport - this.pid + i;
+            //this.neighs[i].pubKey
         }
     }
+
     void processLocalPatientLedger(){
         String[] records;
         try {
@@ -698,6 +704,26 @@ class BCExecutor{
         BCstruct myBC2 = IOHelper.getObjectFromJSON(bcjsonstring, BCstruct.class);
 
         myBC2.printBC();
+    }
+
+    void broadcastHello(){
+        Socket sock;
+        PrintStream out;
+
+        for (int i = 0; i < neighs.length; i++) {
+            try {
+
+                System.out.println("Trying to connect to: " + neighs[i].hostname + ":" + neighs[i].port);
+                sock = new Socket(neighs[i].hostname, neighs[i].port);
+                out = new PrintStream(sock.getOutputStream());
+                out.println("Hello multicast message from process" + this.pid);
+                out.flush();
+                sock.close();
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     void startListeners(){
@@ -747,7 +773,11 @@ class BCExecutor{
                 } else if (worker_type == 1){
                     System.out.println("Nothing here " + worker_type);
                 } else if (worker_type == 2){
-                    System.out.println("Nothing here " + worker_type);
+                    System.out.println("Starting Key Listener on port: " + servsock.getLocalPort());
+                    while (true) {
+                        sock = servsock.accept();
+                        new Thread(new KeyWorker(sock, this.bce)).start();
+                    }
                 } else {
                     System.out.println("ERROR: Worker type specified is invalid ");
                 }
@@ -763,7 +793,57 @@ class BCExecutor{
 
     }
 
-    class BlockChainWorker implements Runnable{
+    static class KeyWorker implements Runnable {
+
+        Socket sock;
+        BCExecutor bce;
+
+        // constructor: requires a socket and listener object to instantiate this object.
+        KeyWorker(Socket sock, BCExecutor listener) {
+            this.sock = sock;
+            this.bce = listener;
+        }
+
+        public void run() {
+
+            PrintStream out;
+            BufferedReader in;
+
+            StringBuffer request; //the raw input
+
+            try {
+                out = new PrintStream(sock.getOutputStream());
+                in = new BufferedReader(new InputStreamReader(sock.getInputStream()));
+
+                request = new StringBuffer();
+
+                int br = 0;
+
+                String textFromServer;
+                // Read a single line, then enter a while loop to received the entire data
+                textFromServer = in.readLine();
+                while (textFromServer != null && br < 1000) {
+                    //System.out.println(textFromServer);
+                    if (textFromServer.isEmpty()) {
+                        break;
+                    }
+                    request.append(textFromServer + "\n");
+                    //request.append(br + ": " + textFromServer + "<br>\n");
+                    br++;
+                    // read a new line prior to the next loop.
+                    textFromServer = in.readLine();
+                }
+            } catch (IOException x) {
+                System.out.println("Error: Connetion reset. Listening again..." + "\n" + x.getMessage());
+                return;
+
+            }
+
+            System.out.println(request.toString());
+        }
+    }
+
+    static class BlockChainWorker implements Runnable{
         Socket sock;
         BCExecutor bce;
 
