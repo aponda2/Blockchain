@@ -1,6 +1,6 @@
 /*--------------------------------------------------------
 
-1. Paul Ponda / Date: 01/17/2021
+1. Paul Ponda / Date: 03/03/2021
 
 2. Java version used, if not the official version for the class:
 both of:
@@ -10,34 +10,25 @@ openjdk 11.0.9 2020-10-20 LTS
 
 
 3. Precise command-line compilation examples / instructions:
-javac *.java
-
+javac -cp "./gson-2.8.2.jar" *.java
 
 4. Precise examples / instructions to run this program:
+Open three terminal windows an run one of these commands in each. Edit the classpath to what is appropriate:
+java -cp './out/:./src/lib/gson-2.8.2.jar' Blockchain 0
+java -cp './out/:./src/lib/gson-2.8.2.jar' Blockchain 1
+java -cp './out/:./src/lib/gson-2.8.2.jar' Blockchain 2
 
-e.g.:
-
-In separate shell windows:
-
-> java JokeServer
-> java JokeClient
-> java JokeClientAdmin
-
-All acceptable commands are displayed on the various consoles.
 
 5. List of files needed for running the program.
 
- a. checklist.html
- b. JokeServer.java
- c. JokeClient.java
- d. JokeClientAdmin.java
+ a. Blockchain.java
+ b. BlockInput0.txt
+ c. BlockInput1.txt
+ d. BlockInput2.txt
 
 5. Notes:
 
 e.g.:
-
-I ran out of time so haven't completely tested the input/output features. The client does work
-with multiple servers and parses that on the command line but not perfectly per the documentaiton description.
 
 ----------------------------------------------------------*/
 
@@ -59,9 +50,11 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.PriorityBlockingQueue;
 
+//Blockhain class
 public class Blockchain {
     public static void main(String args[]) throws IOException, IllegalArgumentException {
-        int serverMode = 1; // 0 = timed init; 1 = PID 2 init.
+        int serverMode = 0; // 0 = timed init; 1 = PID 2 init.
+
         int q_len = 6;
         int basekeyport = 4710;
         int baseUBport = 4820;
@@ -69,9 +62,7 @@ public class Blockchain {
 
         int PID;
 
-        IOHelper myIOutil = new IOHelper();
-        // Command line allows reading a custom port number to listen on.
-
+        // Read the PID of the system from the command line and parse it as an Int.
         if (args.length >= 1){
             for(int i = 0; i < args[0].length(); i++) {
                 if(Character.digit(args[0].charAt(i), 10) >= 0){
@@ -102,7 +93,7 @@ public class Blockchain {
         System.out.println("Paul's Blockchain client v0.1a starting up");
         System.out.println("Starting as PID: " + PID + "\n\n");
 
-        // Start the blockchain executor which handles BLockChain and the listeners.
+        // Start the blockchain executor which will handle all the BlockChain coordination and the listeners.
         BCExecutor bce;
         try {
             bce = new BCExecutor(basekeyport, baseUBport, baseBCport, q_len, PID, serverMode);
@@ -111,6 +102,7 @@ public class Blockchain {
             return;
         }
 
+        // Start up the Listeners before anything, using the executor.
         bce.startListeners();
 
         //Sleep for five seconds to wait for the other peers to start up.
@@ -121,15 +113,20 @@ public class Blockchain {
             Thread.currentThread().interrupt();
         }
 
-        //First share public key with peers.
-        bce.broadcastPublicKey();
-
-
-        //then begin processing my local database.
-        bce.startUVBProcessor();
-
         if(serverMode == 0) {
+            //First share public key with peers.
+            //then begin processing my local database.
+            bce.broadcastPublicKey();
+            bce.startUVBProcessor();
             bce.processLocalPatientLedger();
+        }
+
+        // If using servermode 1, wait for PID 2 to start up.
+        // only PID broadcasts it's public key to inform the other nodes
+        // that it has started and class KeyWorker will initiate the other processes
+        // once the public key is received.
+        if(serverMode == 1 && PID == 2){
+            bce.broadcastPublicKey();
         }
 
         /*
@@ -142,6 +139,9 @@ public class Blockchain {
     }
 
 }
+
+// Contains a simple structure for the peer nodes.
+// This is effectively hardcoded per the assignment instructions.
 class BCPeer{
   int ID;
   PublicKey pubKey;
@@ -151,6 +151,7 @@ class BCPeer{
   String hostname;
 }
 
+// Container for the public key and sender PID
 class EncodedPubKeyStruct {
     String encodedpubkey;
     String pid;
@@ -161,6 +162,7 @@ class EncodedPubKeyStruct {
     }
 }
 
+// Container for a signed Unverified Block.
 class EncodedUVBStruct {
     String jsonUVB;
     String encodedSig;
@@ -173,6 +175,7 @@ class EncodedUVBStruct {
     }
 }
 
+// BCStruct - class for the blockchain object which is a collection of BlockRecords
 class BCstruct{
     LinkedList<BlockRecord> recordList;
 
@@ -187,10 +190,13 @@ class BCstruct{
         }
     }
 
+    // simply get the First / Head of the queue.
     public BlockRecord getLastestBlock(){
         return recordList.getFirst();
     }
 
+    // Add a record to the blockchain.
+    // If the record fails to validate do not add and return false.
     public boolean addRecord(BlockRecord br){
 
         // If this is the first block.
@@ -204,7 +210,7 @@ class BCstruct{
                 this.recordList.addFirst(br);
                 return true;
             } else {
-                //System.out.println("FAILED ADDING BLOCK");
+                System.out.println("WILL NOT ADD BLOCK: previous has does not match");
                 System.out.print(br.previousHash);
                 System.out.print(" != ");
                 System.out.print(this.getLastestBlock().createBlockRecordHash());
@@ -214,6 +220,9 @@ class BCstruct{
         }
     }
 
+    // The blockID is a unique in time identified for the transaction.
+    // there can be many transactions in unverified space with the same
+    // sequence number but all will have a unique ID.
     public boolean findBLockID(String uuidcheck){
         for(int i = 0; i < this.recordList.size(); i++){
             if(uuidcheck.equals(this.recordList.get(i).getBlockID())){
@@ -223,6 +232,9 @@ class BCstruct{
         return false;
     }
 
+    //The sequence number. This is set by the owning PID process.
+    // and corresponds to it's own transactions. Currently artificially
+    // limited to 100 transactions.
     public boolean findBLockSeq(int seq){
         for(int i = 0; i < this.recordList.size(); i++){
             if(Integer.toString(seq).equals(this.recordList.get(i).seq)){
@@ -232,10 +244,13 @@ class BCstruct{
         return false;
     }
 
+    // Compared the has of a provided block's previousBlock field with the
+    // current top block and return true/false.
     public boolean checkPreviousHashMatch(BlockRecord br){
         return br.previousHash.equals(this.getLastestBlock().createBlockRecordHash());
     }
 
+    //pretty print the whole BlockChain to the console.
     public void printBC(){
 
         System.out.println("#### START PRINTING BlockChain ####");
@@ -247,12 +262,32 @@ class BCstruct{
         System.out.println("#### END PRINTING BlockChain ####\n");
     }
 
+    //Get the length of the blockchain.
     public int getLength(){
         return recordList.size();
     }
 
+    //Validate the entire blockchain.
+    // this is done by checking the chain of previous hashes
+    // and proof-of-work for each record.
+    public boolean validateBC(){
+        //We start at Block 1 (instead of 0) as we don't need to validate the dummy block.
+        for(int i = 1; i < this.recordList.size(); i++){
+
+            if(!this.recordList.get(i).previousHash.equals(this.recordList.get(i-1).createBlockRecordHash())){
+                return false;
+            }
+            if(BCExecutor.verifyWork2(BCExecutor.difficulty,this.recordList.get(i))){
+                return false;
+            }
+        }
+        return true;
+    }
+
 }
 
+// BlockRecordComparator - provide a comparator for the Unverified Blocks priority queue.
+// Uses the block timestamps as the sorting order with oldest processed first.
 class BlockRecordComparator implements Comparator<BlockRecord>{
     @Override
     public int compare(BlockRecord a, BlockRecord b){
@@ -272,6 +307,8 @@ class BlockRecordComparator implements Comparator<BlockRecord>{
         return aa.compareTo(bb);
     }
 }
+
+//Blockrecord class
 class BlockRecord implements Serializable{
     final String DATEFORMAT = "yyyy-MM-dd.HH:mm:ss.S";
     private final int NONCE_LEN = 2; //in bytes
@@ -310,7 +347,7 @@ class BlockRecord implements Serializable{
     }
 
 
-        //Initializes a null record (first record)
+     //Initializes a null record (first record) as Jane Doe.
     BlockRecord(int uid) throws NoSuchAlgorithmException {
         this("Jane Doe 1900.01.01 000-00-0000 NA NA NA",
                 "0000000000000000000000000000000000000000000000000000000000000000", uid);
@@ -318,16 +355,20 @@ class BlockRecord implements Serializable{
         //this.previousHash = this.genBaseHash(algo);
     }
 
+    // Print the currently reference block.
     public void printBlockRecord(){
         System.out.println(" *** Printing Block ***");
         System.out.println("BLOCK ID: " + this.BlockID.toString());
         System.out.println("Previous Hash: " + this.previousHash);
         System.out.println("Time Stamp: " + this.timestamp);
         System.out.println("Owner: " + this.userID);
+        System.out.println("Sequence number: " + this.seq);
+        System.out.println("Nonce: " + this.Nonce);
         System.out.println("Data: " + this.patientData.getPatientString());
         System.out.println(" *** End Block ***");
     }
 
+    // Not used - could provide a more realistic base hash if neede.
     private static String genBaseHash(String algo) throws NoSuchAlgorithmException{
         MessageDigest md = MessageDigest.getInstance(algo);
         byte[] nullblock = new byte[256/8];
@@ -340,6 +381,7 @@ class BlockRecord implements Serializable{
         return H;
     }
 
+    // byteToHexString - Helper function to convert any byte array to a hex string.
     public static String byteToHexString(byte[] mySHA) {
         StringBuffer sb = new StringBuffer();
         for (int i = 0; i < mySHA.length; i++) {
@@ -354,6 +396,8 @@ class BlockRecord implements Serializable{
         return sb.toString();
     }
 
+    // createBlockRecordHash - Fucntion that provides the SHA-256 hash value
+    // of the object being referenced.
     public String createBlockRecordHash(){
         StringBuffer sb = new StringBuffer();
         byte[] blockdata;
@@ -376,6 +420,7 @@ class BlockRecord implements Serializable{
         sb.append(this.userID);
         sb.append(this.timestamp);
         sb.append(this.Nonce);
+        sb.append(this.seq);
 
         byte[] sbbyte = sb.toString().getBytes(StandardCharsets.US_ASCII);
         byte[] databyte = patientData.getPatientString().getBytes(StandardCharsets.US_ASCII);
@@ -455,6 +500,8 @@ class BlockRecord implements Serializable{
         return timestamp;
     }
 
+    // Provide ability to reset the timestamp to the current time.
+    // Helpful when a UVB has been rejected (other block won) and needs to be tried again.
     public void resetTimestamp() throws IllegalArgumentException{
         DateFormat df;
         Date currdate = new Date();
@@ -462,7 +509,10 @@ class BlockRecord implements Serializable{
         this.timestamp = df.format(currdate);
     }
 }
+
+//Collection of I/O type static functions for reading/writing files and JSON.
 class IOHelper{
+    // Reads the records file as a array of Strings for each line.
     public static String[] readRecordsFile(String filename) throws IOException{
         BufferedReader reader;
         ArrayList<String> tempStringList = new ArrayList<String>();
@@ -507,6 +557,7 @@ class IOHelper{
         return orderedArray;
     }
 
+    //Gets JSON string from amd object.
     static <T> String getJSONFromObject(T objectforJSON){
 
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
@@ -518,6 +569,7 @@ class IOHelper{
         return jstring;
     }
 
+    // Gets the object form a JSON string.
     static <T> T getObjectFromJSON(String jstr, Class<T> cls){
 
         Gson gson = new Gson();
@@ -528,6 +580,8 @@ class IOHelper{
         return jobj;
     }
 
+    // unused - can read a JSON file that was written to disk and returns on object of the
+    // referenced type.
     public static <T> T readJSONfile(String filename, Class<T> cls) throws IOException {
         BufferedReader bfr;
         Gson gson = new Gson();
@@ -550,6 +604,7 @@ class IOHelper{
         return jobj;
     }
 
+    // Writes a generic string to a file. JSON is a string so this function works for it.
     public static void writeStringToFile(String filename, String jstr) {
         // Write the JSON object to a file:
         try (FileWriter writer = new FileWriter(filename)) {
@@ -562,6 +617,8 @@ class IOHelper{
     }
 }
 
+// Data class for the supplied patient ledgers.
+// This class is strict on the format of the input file and will fail if not exact, by design.
 class PatientRecord{
     private final String DATEFORMAT = "yyyy.mm.dd";
     String firstName;
@@ -673,6 +730,7 @@ class PatientRecord{
 
 }
 
+// Colleciton of methods to help with key mangament and signing.
 class SecurityHelper{
     // Most of this code is taken from the Oracle: https://docs.oracle.com/javase/tutorial/security/apisign/step2.html
     public static KeyPair genKeyPair() throws NoSuchAlgorithmException, NoSuchProviderException{
@@ -724,14 +782,16 @@ class SecurityHelper{
     }
 
 }
-// Dedicated class for the Blockhain Server Handler.
-// Checks inital connection parameters and tracks a connection counter.
+
+// Dedicated class for the Blockchain coordination.
+// Most of the funcational relevant code is here.
 class BCExecutor{
     int servermode;
 
     public static final int VERBOSE = 1;  // if verbose = 1 server will print more output
-    public final int difficulty = 21;
+    public static final int difficulty = 21;
 
+    // store local copies of the ports for easy reference.
     int keyport;
     int UVBport;
     int BCport;
@@ -740,13 +800,15 @@ class BCExecutor{
     //int worker_type; // 0 = BlockChain ; 1 = Unverified Blocks; 2 = Public Key
     int pid;
 
-    BCstruct BC;
-    String Lfilename;
-    // Initialize a basic neighbor structure.
+
+    BCstruct BC; // The blockchain that we are working on.
+    String Lfilename; // The ledger filename that this process will be reading its data from.
     BCPeer[] neighs; // the list of neighbors
     KeyPair mykey; // the private/public keypair for this server.
 
-    final PriorityBlockingQueue<BlockRecord> UVBqueue = new PriorityBlockingQueue<>(100, new BlockRecordComparator());;
+    // Process from oldest to newest to minimize discards and implement FIFO.
+    final PriorityBlockingQueue<BlockRecord> UVBqueue =
+            new PriorityBlockingQueue<>(100, Collections.reverseOrder(new BlockRecordComparator()));;
 
 
     // Constructor: Initialize the server socket.
@@ -769,6 +831,8 @@ class BCExecutor{
         initializeNeighbors();
     }
 
+    // initalize the peer group values. Note that this is hard coded to localhost
+    // and the ports follow the given assignment parameters.
     private void initializeNeighbors(){
         for (int i = 0; i < this.neighs.length; i++){
             int li = i + 1;
@@ -782,9 +846,9 @@ class BCExecutor{
         }
     }
 
-    // Here int difficulty creates a "less than" effect.
+    // Here we create a "less than" effect.
     // the lower the difficulty the harder the problem
-    // difficulty: range(1 - 63)
+    // difficulty: range(1 - 63). THIS DOESN't YET WORK.
     public void doWork1(int dif){
         int base_bytes = 8;
         byte[] nonce = new byte[16];
@@ -849,7 +913,9 @@ class BCExecutor{
 
     }
 
-    public boolean verifyWork2(int dif, BlockRecord newblock){
+    // This function can validate that a node completed the had work (proof-of-work)
+    // as the hash must mach the problem.
+    public static boolean verifyWork2(int dif, BlockRecord newblock){
         String hash;
         long intcomp;
 
@@ -959,14 +1025,27 @@ class BCExecutor{
             e.printStackTrace();
         }
 
+        // Sleep XX seconds before writing blockchain to console as peer updates may still be coming in.
         try {
-            Thread.sleep(45000);
+            Thread.sleep(30000);
         } catch (InterruptedException e) {
             System.out.println("Interrupted: " + e.getMessage());
             Thread.currentThread().interrupt();
         }
+
         this.BC.printBC();
-        IOHelper.writeStringToFile("BlockchainLedger.json", IOHelper.getJSONFromObject(this.BC));
+
+        // Sleep additional XX seconds before writing blockchain to JSON file.
+        try {
+            Thread.sleep(30000);
+        } catch (InterruptedException e) {
+            System.out.println("Interrupted: " + e.getMessage());
+            Thread.currentThread().interrupt();
+        }
+
+        if(this.pid == 0) {
+            IOHelper.writeStringToFile("BlockchainLedger.json", IOHelper.getJSONFromObject(this.BC));
+        }
     }
 
     void broadcastBC(){
@@ -1223,12 +1302,17 @@ class BCExecutor{
             System.out.println(SecurityHelper.base64EncodeBytes(bce.neighs[rcvpid].pubKey.getEncoded()));
 
             if(bce.servermode == 1 && rcvpid == 2){
+                bce.broadcastPublicKey();
+                bce.startUVBProcessor();
                 bce.processLocalPatientLedger();
             }
 
         }
     }
 
+    // BCWorker - class to process full blockchain update requests.
+    // receives a blockchain and validates it on length (must be longer)
+    // and validity (consistency per class BCStruct)
     static class BCWorker implements Runnable {
 
         Socket sock;
@@ -1278,11 +1362,11 @@ class BCExecutor{
             BCstruct newBC = IOHelper.getObjectFromJSON(request.toString(), BCstruct.class);
 
 
-            if(newBC.getLength() > this.bce.BC.getLength()){
+            if(newBC.getLength() > this.bce.BC.getLength() && newBC.validateBC()){
                 this.bce.BC = newBC;
                 System.out.println("Received updated BC: Replacing local BC");
             } else {
-                System.out.println("Received updated BC: Rejecting it as being older");
+                System.out.println("Received updated BC: Rejecting it as invalid or not long enough");
             }
 
 
