@@ -60,10 +60,8 @@ import java.util.*;
 import java.util.concurrent.PriorityBlockingQueue;
 
 public class Blockchain {
-    private int serverMode = 0;
-
-
     public static void main(String args[]) throws IOException, IllegalArgumentException {
+        int serverMode = 1; // 0 = timed init; 1 = PID 2 init.
         int q_len = 6;
         int basekeyport = 4710;
         int baseUBport = 4820;
@@ -107,7 +105,7 @@ public class Blockchain {
         // Start the blockchain executor which handles BLockChain and the listeners.
         BCExecutor bce;
         try {
-            bce = new BCExecutor(basekeyport, baseUBport, baseBCport, q_len, PID);
+            bce = new BCExecutor(basekeyport, baseUBport, baseBCport, q_len, PID, serverMode);
         } catch (Exception e){
             System.out.println("ERROR: " + e.getMessage());
             return;
@@ -129,7 +127,10 @@ public class Blockchain {
 
         //then begin processing my local database.
         bce.startUVBProcessor();
-        bce.processLocalPatientLedger();
+
+        if(serverMode == 0) {
+            bce.processLocalPatientLedger();
+        }
 
         /*
         // Print all of the providers supported on this system.
@@ -726,6 +727,8 @@ class SecurityHelper{
 // Dedicated class for the Blockhain Server Handler.
 // Checks inital connection parameters and tracks a connection counter.
 class BCExecutor{
+    int servermode;
+
     public static final int VERBOSE = 1;  // if verbose = 1 server will print more output
     public final int difficulty = 21;
 
@@ -747,7 +750,7 @@ class BCExecutor{
 
 
     // Constructor: Initialize the server socket.
-    BCExecutor(int basekeyport, int baseUBport, int baseBCport, int q_len, int pid) throws NoSuchProviderException, NoSuchAlgorithmException {
+    BCExecutor(int basekeyport, int baseUBport, int baseBCport, int q_len, int pid, int servermode) throws NoSuchProviderException, NoSuchAlgorithmException {
         this.keyport = basekeyport + pid;
         this.UVBport = baseUBport + pid;
         this.BCport = baseBCport + pid;
@@ -762,6 +765,7 @@ class BCExecutor{
 
         this.mykey = SecurityHelper.genKeyPair();
 
+        this.servermode = servermode;
         initializeNeighbors();
     }
 
@@ -956,12 +960,13 @@ class BCExecutor{
         }
 
         try {
-            Thread.sleep(30000);
+            Thread.sleep(45000);
         } catch (InterruptedException e) {
             System.out.println("Interrupted: " + e.getMessage());
             Thread.currentThread().interrupt();
         }
         this.BC.printBC();
+        IOHelper.writeStringToFile("BlockchainLedger.json", IOHelper.getJSONFromObject(this.BC));
     }
 
     void broadcastBC(){
@@ -1216,6 +1221,10 @@ class BCExecutor{
 
             System.out.println("Received public key from Process: " + rcvpid);
             System.out.println(SecurityHelper.base64EncodeBytes(bce.neighs[rcvpid].pubKey.getEncoded()));
+
+            if(bce.servermode == 1 && rcvpid == 2){
+                bce.processLocalPatientLedger();
+            }
 
         }
     }
