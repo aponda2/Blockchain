@@ -824,7 +824,7 @@ class BCExecutor{
             //System.out.println( BC.getLastestBlock().getBlockID());
             BlockRecord newblock = new BlockRecord(records[i], prevHash, pid );
 
-            //System.out.println(doWork2(difficulty, newblock, false));
+            System.out.println(doWork2(difficulty, newblock, false));
             //System.out.println(newblock.createBlockRecordHash());
             //System.out.println("VERIFYING WORK: " + verifyWork2(difficulty, newblock));
 
@@ -946,7 +946,7 @@ class BCExecutor{
                     System.out.println("Starting BlockChain Listener on port: " + servsock.getLocalPort());
                     while (true) {
                         sock = servsock.accept();
-                        new Thread(new BlockChainWorker(sock, this.bce)).start();
+                        new Thread(new BCWorker(sock, this.bce)).start();
                     }
                 } else if (worker_type == 1){
                     System.out.println("Nothing here " + worker_type);
@@ -1099,58 +1099,6 @@ class BCExecutor{
 
 
 
-        }
-    }
-
-
-    static class BlockChainWorker implements Runnable{
-        Socket sock;
-        BCExecutor bce;
-
-        // constructor: requires a socket and listener object to instantiate this object.
-        BlockChainWorker(Socket sock, BCExecutor listener){
-            this.sock = sock;
-            this.bce = listener;
-        }
-
-        public void run() {
-            PrintStream out;
-            BufferedReader in;
-
-            StringBuffer request; //the raw input
-
-            try {
-                out = new PrintStream(sock.getOutputStream());
-                in = new BufferedReader(new InputStreamReader(sock.getInputStream()));
-
-                request = new StringBuffer();
-
-                int br = 0;
-                String textFromServer;
-                long startTime;
-
-                // Read a single line, then enter a while loop to received the entire header
-                textFromServer = in.readLine();
-                //todo: Header must end with a blank line per RFC7230. If it doesn't this gets stuck
-                // implement a ExecutorService that prevents this via a timeout.
-                while (textFromServer != null && br < 1000) {
-                    //System.out.println(textFromServer);
-                    if (textFromServer.isEmpty()) {
-                        break;
-                    }
-                    request.append(textFromServer + "\n");
-                    //request.append(br + ": " + textFromServer + "<br>\n");
-                    br++;
-                    // read a new line prior to the next loop.
-                    textFromServer = in.readLine();
-                }
-            } catch (IOException x) {
-                System.out.println("Error: Connetion reset. Listening again..." + "\n" + x.getMessage());
-
-            }
-        }
-
-        private void BCWorker(){
         }
     }
 }
