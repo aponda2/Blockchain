@@ -868,10 +868,16 @@ class BCExecutor{
         for (int i = 0; i < neighs.length; i++) {
             try {
                 int port;
-                if(type ==0) port = neighs[i].keyport;
-                    else if(type == 1)port = neighs[i].BCport;
-                    else if(type == 2)port = neighs[i].UVBport;
-                    else break;
+                if(type == 0){
+                    port = neighs[i].keyport;
+                } else if(type == 1) {
+                    port = neighs[i].BCport;
+                }else if(type == 2){
+                    port = neighs[i].UVBport;
+                }else {
+                    System.out.println("ERROR: invalid type in broadcastHelper");
+                    break;
+                }
                 System.out.println("Trying to connect to: " + neighs[i].hostname + ":" + port);
                 sock = new Socket(neighs[i].hostname, port);
                 out = new PrintStream(sock.getOutputStream());
