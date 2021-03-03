@@ -245,7 +245,7 @@ public class BlockInputG{
 
 	/* CDE For the timestamp in the block entry: */
 	try{Thread.sleep(1001);}catch(InterruptedException e){}
-      	Date date = new Date();
+	Date date = new Date();
 	//String T1 = String.format("%1$s %2$tF.%2$tT", "Timestamp:", date);
 	String T1 = String.format("%1$s %2$tF.%2$tT", "", date);
 	String TimeStampString = T1 + "." + pnum; // No timestamp collisions!
