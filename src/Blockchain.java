@@ -222,6 +222,15 @@ class BCstruct{
         return false;
     }
 
+    public boolean findBLockSeq(int seq){
+        for(int i = 0; i < this.recordList.size(); i++){
+            if(Integer.toString(seq).equals(this.recordList.get(i).seq)){
+                return true;
+            }
+        }
+        return false;
+    }
+
     public boolean checkPreviousHashMatch(BlockRecord br){
         return br.previousHash.equals(this.getLastestBlock().createBlockRecordHash());
     }
@@ -273,12 +282,13 @@ class BlockRecord implements Serializable{
     PatientRecord patientData;
     String timestamp;
     String userID;
+    String seq;
 
     BlockRecord(String patStr, String prevH, int uid){
-        this(patStr, prevH, uid, UUID.randomUUID());
+        this(patStr, prevH, uid, UUID.randomUUID(),0);
     }
 
-    BlockRecord(String patStr, String prevH, int uid, UUID uuid) {
+    BlockRecord(String patStr, String prevH, int uid, UUID uuid, int seq) {
         this.previousHash = prevH;
         this.BlockID = uuid;
         this.Nonce = "00000000";
@@ -295,6 +305,7 @@ class BlockRecord implements Serializable{
         }
 
         this.userID = "PID" + uid;
+        this.seq = Integer.toString(seq);
     }
 
 
@@ -884,14 +895,18 @@ class BCExecutor{
             //System.out.println(records[i]);
 
             // if we move to the next record then get a new UUID otherwise continue with the same one.
+            /*
             if(isnew == 1) {
                 uuid = UUID.randomUUID();
                 isnew = 0;
             }
 
+             */
+            int seq = this.pid *100 + i + 1;
+
             String prevHash = BC.getLastestBlock().createBlockRecordHash();
             //System.out.println( BC.getLastestBlock().getBlockID());
-            newblock = new BlockRecord(records[i], prevHash, pid, uuid);
+            newblock = new BlockRecord(records[i], prevHash, pid, uuid, seq);
 
             //System.out.println(doWork2(difficulty, newblock, false));
             //System.out.println(newblock.createBlockRecordHash());
@@ -910,10 +925,10 @@ class BCExecutor{
                 Thread.currentThread().interrupt();
             }
 
-            if(BC.findBLockID(newblock.getBlockID())){
+            if(BC.findBLockSeq(seq) ){
                 //retry the record
                 i++;
-                isnew = 1;
+                //isnew = 1;
             }
             //BC.addRecord(newblock);
             //myBC.printBC();
