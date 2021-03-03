@@ -275,8 +275,12 @@ class BlockRecord implements Serializable{
     String userID;
 
     BlockRecord(String patStr, String prevH, int uid){
+        this(patStr, prevH, uid, UUID.randomUUID());
+    }
+
+    BlockRecord(String patStr, String prevH, int uid, UUID uuid) {
         this.previousHash = prevH;
-        this.BlockID = UUID.randomUUID();
+        this.BlockID = uuid;
         this.Nonce = "00000000";
         //new Random().nextBytes(this.Nonce);
         this.patientData = new PatientRecord(patStr);
@@ -291,10 +295,10 @@ class BlockRecord implements Serializable{
         }
 
         this.userID = "PID" + uid;
-
     }
 
-    //Initializes a null record (first record)
+
+        //Initializes a null record (first record)
     BlockRecord(int uid) throws NoSuchAlgorithmException {
         this("Jane Doe 1900.01.01 000-00-0000 NA NA NA",
                 "0000000000000000000000000000000000000000000000000000000000000000", uid);
@@ -873,12 +877,21 @@ class BCExecutor{
         }
 
         int i = 0;
+        int isnew = 1;
+        BlockRecord newblock;
+        UUID uuid = UUID.randomUUID();
         while (i < records.length){
             //System.out.println(records[i]);
 
+            // if we move to the next record then get a new UUID otherwise continue with the same one.
+            if(isnew == 1) {
+                uuid = UUID.randomUUID();
+                isnew = 0;
+            }
+
             String prevHash = BC.getLastestBlock().createBlockRecordHash();
             //System.out.println( BC.getLastestBlock().getBlockID());
-            BlockRecord newblock = new BlockRecord(records[i], prevHash, pid );
+            newblock = new BlockRecord(records[i], prevHash, pid, uuid);
 
             //System.out.println(doWork2(difficulty, newblock, false));
             //System.out.println(newblock.createBlockRecordHash());
@@ -900,6 +913,7 @@ class BCExecutor{
             if(BC.findBLockID(newblock.getBlockID())){
                 //retry the record
                 i++;
+                isnew = 1;
             }
             //BC.addRecord(newblock);
             //myBC.printBC();
@@ -926,6 +940,12 @@ class BCExecutor{
             e.printStackTrace();
         }
 
+        try {
+            Thread.sleep(30000);
+        } catch (InterruptedException e) {
+            System.out.println("Interrupted: " + e.getMessage());
+            Thread.currentThread().interrupt();
+        }
         this.BC.printBC();
     }
 
