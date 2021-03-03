@@ -45,8 +45,10 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 import java.io.*;
+import java.math.BigInteger;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
@@ -117,31 +119,7 @@ public class Blockchain {
             Thread.currentThread().interrupt();
         }
 
-        //bce.processLocalPatientLedger();
-
-        KeyPair mykey;
-        byte[] sig;
-        try {
-            mykey = SecurityHelper.genKeyPair();
-            sig = SecurityHelper.signData(bce.BC.getLastestBlock().patientData.getPatientString().getBytes(StandardCharsets.UTF_8),
-                    mykey.getPrivate());
-
-            //String temp = new String(sig, StandardCharsets.UTF_8);
-            //System.out.println(temp);
-            System.out.println(SecurityHelper.base64EncodeBytes(sig));
-
-            String encodedpub = SecurityHelper.base64EncodeBytes(mykey.getPublic().getEncoded());
-
-            PublicKey decodedpub = SecurityHelper.getPubKeyEncoded(SecurityHelper.base64DecodeString(encodedpub));
-
-            boolean test = SecurityHelper.verifySignedData(decodedpub, sig,
-                    bce.BC.getLastestBlock().patientData.getPatientString().getBytes(StandardCharsets.UTF_8));
-
-            System.out.println(test);
-        } catch (Exception e){
-            System.out.println(e.getMessage());
-        }
-
+        bce.processLocalPatientLedger();
 
         bce.broadcastPublicKey();
         /*
@@ -158,7 +136,9 @@ public class Blockchain {
 class BCPeer{
   int ID;
   PublicKey pubKey;
-  int port;
+  int keyport;
+  int UVBport;
+  int BCport;
   String hostname;
 }
 
@@ -171,6 +151,17 @@ class EncodedPubKeyStruct {
         this.pid = Integer.toString(id);
     }
 }
+
+class EncodedUVBStruct {
+    String encodedUVB;
+    String pid;
+
+    EncodedUVBStruct(String encodedUVB, int id){
+        this.encodedUVB = encodedUVB;
+        this.pid = Integer.toString(id);
+    }
+}
+
 class BCstruct{
     LinkedList<BlockRecord> recordList;
 
@@ -221,6 +212,10 @@ class BCstruct{
         System.out.println("#### END PRINTING BlockChain ####\n");
     }
 
+    public int getLength(){
+        return recordList.size();
+    }
+
 }
 class BlockRecord implements Serializable{
     private final String DATEFORMAT = "yyyy-MM-dd.HH:mm:ss.S";
@@ -228,7 +223,7 @@ class BlockRecord implements Serializable{
     private final String HASH_TYPE = "SHA-256";
 
     UUID BlockID;
-    byte[] Nonce;
+    String Nonce;
     String previousHash;
     PatientRecord patientData;
     String timestamp;
@@ -237,8 +232,8 @@ class BlockRecord implements Serializable{
     BlockRecord(String patStr, String prevH, int uid){
         this.previousHash = prevH;
         this.BlockID = UUID.randomUUID();
-        this.Nonce = new byte[NONCE_LEN];
-        new Random().nextBytes(this.Nonce);
+        this.Nonce = "00000000";
+        //new Random().nextBytes(this.Nonce);
         this.patientData = new PatientRecord(patStr);
 
         DateFormat df;
@@ -284,7 +279,7 @@ class BlockRecord implements Serializable{
         return H;
     }
 
-    private static String byteToHexString(byte[] mySHA) {
+    public static String byteToHexString(byte[] mySHA) {
         StringBuffer sb = new StringBuffer();
         for (int i = 0; i < mySHA.length; i++) {
             //sb.append(Integer.toString((mySHA[i] & 0xff) + 0x100, 16).substring(1));
@@ -317,11 +312,14 @@ class BlockRecord implements Serializable{
         // BlockID; PreviousHash; myProcessID (TBD); timestamp; nonce; data.
         sb.append(this.BlockID.toString());
         sb.append(this.previousHash);
-        //MISSING PROCESS ID
-        sb.append(timestamp);
+        sb.append(this.userID);
+        sb.append(this.timestamp);
+        sb.append(this.Nonce);
 
         byte[] sbbyte = sb.toString().getBytes(StandardCharsets.US_ASCII);
         byte[] databyte = patientData.getPatientString().getBytes(StandardCharsets.US_ASCII);
+
+        /*
 
         blockdata = new byte[sbbyte.length + this.Nonce.length + databyte.length];
 
@@ -336,6 +334,20 @@ class BlockRecord implements Serializable{
         }
 
         idx = sbbyte.length + this.Nonce.length;
+        for(int i = 0; i < databyte.length; i++){
+            blockdata[i + idx] = databyte[i];
+        }
+
+         */
+
+        blockdata = new byte[sbbyte.length + databyte.length];
+
+        int idx = 0;
+        for(int i = 0; i < sbbyte.length; i++){
+            blockdata[i + idx] = sbbyte[i];
+        }
+
+        idx = sbbyte.length;
         for(int i = 0; i < databyte.length; i++){
             blockdata[i + idx] = databyte[i];
         }
@@ -366,15 +378,28 @@ class BlockRecord implements Serializable{
         return this.BlockID;
     }
 
-    public byte[] getNonce() {
+    public String getNonce() {
         return this.Nonce;
+    }
+
+    public void setNonce(String buff) {
+        this.Nonce = buff;
     }
 
     public String getPreviousHash(){
         return this.previousHash;
     }
 
+    public String getTimestamp() {
+        return timestamp;
+    }
 
+    public void resetTimestamp() throws IllegalArgumentException{
+        DateFormat df;
+        Date currdate = new Date();
+        df = new SimpleDateFormat(DATEFORMAT, Locale.ENGLISH);
+        this.timestamp = df.format(currdate);
+    }
 }
 class IOHelper{
     public static String[] readRecordsFile(String filename) throws IOException{
@@ -682,12 +707,107 @@ class BCExecutor{
             this.neighs[i] = new BCPeer();
             this.neighs[i].hostname = "localhost";
             this.neighs[i].ID = li;
-            this.neighs[i].port = this.keyport - this.pid + i;
+            this.neighs[i].keyport = this.keyport - this.pid + i;
+            this.neighs[i].UVBport = this.UVBport - this.pid + i;
+            this.neighs[i].BCport = this.BCport - this.pid + i;
             //this.neighs[i].pubKey
         }
     }
 
+    // Here int difficulty creates a "less than" effect.
+    // the lower the difficulty the harder the problem
+    // difficulty: range(1 - 63)
+    public void doWork1(int dif){
+        int base_bytes = 8;
+        byte[] nonce = new byte[16];
+        SecureRandom random = new SecureRandom();
+
+        random.nextBytes(nonce);
+
+        BigInteger min_val = BigInteger.valueOf(2);
+        min_val.pow(dif);
+
+
+    }
+
+
+    // Here int difficulty is the number of leading zeros
+    // the higher the difficulty the harder the problem
+    // difficulty: range(1 - 256) but never use 256 ...
+    public long doWork2(int dif, BlockRecord newblock, boolean runslow){
+        byte[] nonce = new byte[16];
+        String hash;
+        SecureRandom random = new SecureRandom();
+
+        long counter = 0;
+
+
+        long intcomp = 1;
+
+        while(intcomp != 0) {
+            random.nextBytes(nonce);
+            newblock.setNonce(BlockRecord.byteToHexString(nonce));
+            newblock.resetTimestamp();
+
+            hash = newblock.createBlockRecordHash();
+            intcomp = Long.parseLong(hash.substring(0,15), 16);
+            intcomp = intcomp << 4;
+
+            long mask = 0xFFFFFFFFFFFFFFFFL;
+            mask = mask >>> (64 - dif);
+            mask = mask << (64 - dif);
+
+            //System.out.println(String.format("%64s", Long.toBinaryString(intcomp)).replace(" ", "0"));
+            //System.out.println(Long.toBinaryString(mask));
+
+            intcomp = intcomp & mask;
+
+            //System.out.println(hash);
+            //System.out.println(intcomp);
+            //System.out.println(Integer.toBinaryString(intcomp));
+            counter++;
+
+            if (runslow) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    System.out.println("Interrupted: " + e.getMessage());
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+        //System.out.println("End!!");
+        return counter;
+
+    }
+
+    public boolean verifyWork2(int dif, BlockRecord newblock){
+        String hash;
+        long intcomp;
+
+        hash = newblock.createBlockRecordHash();
+
+
+        intcomp = Long.parseLong(hash.substring(0,15), 16);
+        intcomp = intcomp << 4;
+
+        long mask = 0xFFFFFFFFFFFFFFFFL;
+        mask = mask >>> (64 - dif);
+        mask = mask << (64 - dif);
+
+        intcomp = intcomp & mask;
+
+        if(intcomp == 0){
+            return  true;
+        } else {
+            return false;
+        }
+
+    }
+
     void processLocalPatientLedger(){
+        int difficulty = 21;
+
         String[] records;
         try {
             records = IOHelper.readRecordsFile(Lfilename);
@@ -698,23 +818,73 @@ class BCExecutor{
         }
 
         for (int i = 0; i < records.length; i++){
-            System.out.println(records[i]);
+            //System.out.println(records[i]);
 
             String prevHash = BC.getLastestBlock().createBlockRecordHash();
-            System.out.println( BC.getLastestBlock().getBlockID());
+            //System.out.println( BC.getLastestBlock().getBlockID());
             BlockRecord newblock = new BlockRecord(records[i], prevHash, pid );
+
+            //System.out.println(doWork2(difficulty, newblock, false));
+            //System.out.println(newblock.createBlockRecordHash());
+            //System.out.println("VERIFYING WORK: " + verifyWork2(difficulty, newblock));
+
             BC.addRecord(newblock);
             //myBC.printBC();
         }
 
-        String bcjsonstring = IOHelper.getJSONFromObject(BC);
-        System.out.println(bcjsonstring);
-        BCstruct myBC2 = IOHelper.getObjectFromJSON(bcjsonstring, BCstruct.class);
+        //String bcjsonstring = IOHelper.getJSONFromObject(BC);
+        //System.out.println(bcjsonstring);
+        //BCstruct myBC2 = IOHelper.getObjectFromJSON(bcjsonstring, BCstruct.class);
 
-        myBC2.printBC();
+        try {
+            broadcastBC();
+        } catch (Exception e){
+            System.out.println("ERROR: failed to multicast blockchain");
+            e.printStackTrace();
+        }
+
+        this.BC.printBC();
     }
 
     //This is just a test function, not used for the real program.
+    void broadcastBC() throws InvalidKeyException, NoSuchAlgorithmException, NoSuchProviderException, SignatureException {
+        Socket sock;
+        PrintStream out;
+
+        String bcjsonstring = IOHelper.getJSONFromObject(BC);
+
+        //SecurityHelper.signData(bcjsonstring.getBytes(StandardCharsets.UTF_8), this.mykey.getPrivate());
+
+        broadcastHelper(bcjsonstring, 1);
+
+    }
+
+    // type: 0 = key, 1 = BC, 2 = UVB
+    private void broadcastHelper(String message, int type){
+        Socket sock;
+        PrintStream out;
+
+
+        for (int i = 0; i < neighs.length; i++) {
+            try {
+                int port;
+                if(type ==0) port = neighs[i].keyport;
+                    else if(type == 1)port = neighs[i].BCport;
+                    else if(type == 2)port = neighs[i].UVBport;
+                    else break;
+                System.out.println("Trying to connect to: " + neighs[i].hostname + ":" + port);
+                sock = new Socket(neighs[i].hostname, port);
+                out = new PrintStream(sock.getOutputStream());
+                out.print(message);
+                out.flush();
+                sock.close();
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     void broadcastPublicKey(){
         Socket sock;
         PrintStream out;
@@ -725,19 +895,7 @@ class BCExecutor{
 
         String message = IOHelper.getJSONFromObject(skey);
 
-        for (int i = 0; i < neighs.length; i++) {
-            try {
-                System.out.println("Trying to connect to: " + neighs[i].hostname + ":" + neighs[i].port);
-                sock = new Socket(neighs[i].hostname, neighs[i].port);
-                out = new PrintStream(sock.getOutputStream());
-                out.print(message);
-                out.flush();
-                sock.close();
-
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
+        broadcastHelper(message, 0);
     }
 
     void startListeners(){
@@ -877,6 +1035,67 @@ class BCExecutor{
 
         }
     }
+
+    static class BCWorker implements Runnable {
+
+        Socket sock;
+        BCExecutor bce;
+
+        // constructor: requires a socket and listener object to instantiate this object.
+        BCWorker(Socket sock, BCExecutor listener) {
+            this.sock = sock;
+            this.bce = listener;
+        }
+
+        public void run() {
+
+            //PrintStream out;
+            BufferedReader in;
+
+            StringBuffer request; //the raw input
+
+            try {
+                //out = new PrintStream(sock.getOutputStream());
+                in = new BufferedReader(new InputStreamReader(sock.getInputStream()));
+
+                request = new StringBuffer();
+
+                int br = 0;
+
+                String textFromServer;
+                // Read a single line, then enter a while loop to received the entire data
+                textFromServer = in.readLine();
+                while (textFromServer != null && br < 1000) {
+                    //System.out.println(textFromServer);
+                    if (textFromServer.isEmpty()) {
+                        break;
+                    }
+                    request.append(textFromServer);
+                    br++;
+                    // read a new line prior to the next loop.
+                    textFromServer = in.readLine();
+                }
+            } catch (IOException x) {
+                System.out.println("Error: Connetion reset. Listening again..." + "\n" + x.getMessage());
+                return;
+            }
+
+            //System.out.println(request.toString());
+
+            BCstruct newBC = IOHelper.getObjectFromJSON(request.toString(), BCstruct.class);
+
+            if(newBC.getLength() > this.bce.BC.getLength()){
+                this.bce.BC = newBC;
+                System.out.println("Received updated BC: Replacing local BC");
+            } else {
+                System.out.println("Received updated BC: Rejecting it as being older");
+            }
+
+
+
+        }
+    }
+
 
     static class BlockChainWorker implements Runnable{
         Socket sock;
