@@ -47,7 +47,6 @@ import com.google.gson.GsonBuilder;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
@@ -144,7 +143,7 @@ public class Blockchain {
         }
 
 
-        bce.broadcastHello();
+        bce.broadcastPublicKey();
         /*
         // Print all of the providers supported on this system.
         for(int i = 0; i<Security.getProviders().length; i++) {
@@ -163,6 +162,15 @@ class BCPeer{
   String hostname;
 }
 
+class EncodedPubKeyStruct {
+    String encodedpubkey;
+    String pid;
+
+    EncodedPubKeyStruct(String key, int id){
+        this.encodedpubkey = key;
+        this.pid = Integer.toString(id);
+    }
+}
 class BCstruct{
     LinkedList<BlockRecord> recordList;
 
@@ -706,17 +714,23 @@ class BCExecutor{
         myBC2.printBC();
     }
 
-    void broadcastHello(){
+    //This is just a test function, not used for the real program.
+    void broadcastPublicKey(){
         Socket sock;
         PrintStream out;
 
+        String myEncodedPubKey = SecurityHelper.base64EncodeBytes(this.mykey.getPublic().getEncoded());
+
+        EncodedPubKeyStruct skey = new EncodedPubKeyStruct(myEncodedPubKey, this.pid);
+
+        String message = IOHelper.getJSONFromObject(skey);
+
         for (int i = 0; i < neighs.length; i++) {
             try {
-
                 System.out.println("Trying to connect to: " + neighs[i].hostname + ":" + neighs[i].port);
                 sock = new Socket(neighs[i].hostname, neighs[i].port);
                 out = new PrintStream(sock.getOutputStream());
-                out.println("Hello multicast message from process" + this.pid);
+                out.print(message);
                 out.flush();
                 sock.close();
 
@@ -812,7 +826,7 @@ class BCExecutor{
             StringBuffer request; //the raw input
 
             try {
-                out = new PrintStream(sock.getOutputStream());
+                //out = new PrintStream(sock.getOutputStream());
                 in = new BufferedReader(new InputStreamReader(sock.getInputStream()));
 
                 request = new StringBuffer();
@@ -827,8 +841,7 @@ class BCExecutor{
                     if (textFromServer.isEmpty()) {
                         break;
                     }
-                    request.append(textFromServer + "\n");
-                    //request.append(br + ": " + textFromServer + "<br>\n");
+                    request.append(textFromServer);
                     br++;
                     // read a new line prior to the next loop.
                     textFromServer = in.readLine();
@@ -836,10 +849,32 @@ class BCExecutor{
             } catch (IOException x) {
                 System.out.println("Error: Connetion reset. Listening again..." + "\n" + x.getMessage());
                 return;
-
             }
 
-            System.out.println(request.toString());
+            //System.out.println(request.toString());
+
+            EncodedPubKeyStruct rcvkey = IOHelper.getObjectFromJSON(request.toString(), EncodedPubKeyStruct.class);
+            int rcvpid;
+            try {
+                rcvpid = Integer.parseInt(rcvkey.pid);
+                if (rcvpid != 0 && rcvpid != 1 && rcvpid != 2 ) {
+                    System.out.println("ERROR: Received PID is not valid: " + rcvkey.pid);
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("ERROR: Received PID is not valid: " + rcvkey.pid);
+                return;
+            }
+
+            try {
+                bce.neighs[rcvpid].pubKey = SecurityHelper.getPubKeyEncoded(SecurityHelper.base64DecodeString(rcvkey.encodedpubkey));
+            } catch (Exception e){
+                System.out.println("Error: failed to retrieve public key from network");
+                e.printStackTrace();
+            }
+
+            System.out.println("Received public key from Process: " + rcvpid);
+            System.out.println(SecurityHelper.base64EncodeBytes(bce.neighs[rcvpid].pubKey.getEncoded()));
+
         }
     }
 
