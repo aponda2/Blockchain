@@ -176,7 +176,7 @@ class EncodedUVBStruct {
 }
 
 // BCStruct - class for the blockchain object which is a collection of BlockRecords
-class BCstruct{
+class BCstruct {
     LinkedList<BlockRecord> recordList;
 
     // Initiate a new BlockChain
@@ -185,28 +185,29 @@ class BCstruct{
 
         try {
             recordList.add(new BlockRecord(uid));
-        } catch (NoSuchAlgorithmException e){
+        } catch (NoSuchAlgorithmException e) {
             System.out.println("ERROR: Could not initialize blockchain first record.");
         }
     }
 
     // simply get the First / Head of the queue.
-    public BlockRecord getLastestBlock(){
+    public BlockRecord getLastestBlock() {
         return recordList.getFirst();
     }
 
     // Add a record to the blockchain.
     // If the record fails to validate do not add and return false.
-    public boolean addRecord(BlockRecord br){
+    public boolean addRecord(BlockRecord br, int pid) {
 
         // If this is the first block.
-        if(this.recordList.size() == 0) {
+        if (this.recordList.size() == 0) {
             this.recordList.addFirst(br);
             return true;
         } else {
             // Check that prevHash matches
-            if (br.previousHash.equals(this.getLastestBlock().createBlockRecordHash())){
+            if (br.previousHash.equals(this.getLastestBlock().createBlockRecordHash())) {
                 //System.out.println("SUCCESS ADDING BLOCK");
+                br.creditPID = Integer.toString(pid);
                 this.recordList.addFirst(br);
                 return true;
             } else {
@@ -223,9 +224,9 @@ class BCstruct{
     // The blockID is a unique in time identified for the transaction.
     // there can be many transactions in unverified space with the same
     // sequence number but all will have a unique ID.
-    public boolean findBLockID(String uuidcheck){
-        for(int i = 0; i < this.recordList.size(); i++){
-            if(uuidcheck.equals(this.recordList.get(i).getBlockID())){
+    public boolean findBLockID(String uuidcheck) {
+        for (int i = 0; i < this.recordList.size(); i++) {
+            if (uuidcheck.equals(this.recordList.get(i).getBlockID())) {
                 return true;
             }
         }
@@ -235,9 +236,9 @@ class BCstruct{
     //The sequence number. This is set by the owning PID process.
     // and corresponds to it's own transactions. Currently artificially
     // limited to 100 transactions.
-    public boolean findBLockSeq(int seq){
-        for(int i = 0; i < this.recordList.size(); i++){
-            if(Integer.toString(seq).equals(this.recordList.get(i).seq)){
+    public boolean findBLockSeq(int seq) {
+        for (int i = 0; i < this.recordList.size(); i++) {
+            if (Integer.toString(seq).equals(this.recordList.get(i).seq)) {
                 return true;
             }
         }
@@ -246,15 +247,15 @@ class BCstruct{
 
     // Compared the has of a provided block's previousBlock field with the
     // current top block and return true/false.
-    public boolean checkPreviousHashMatch(BlockRecord br){
+    public boolean checkPreviousHashMatch(BlockRecord br) {
         return br.previousHash.equals(this.getLastestBlock().createBlockRecordHash());
     }
 
     //pretty print the whole BlockChain to the console.
-    public void printBC(){
+    public void printBC() {
 
         System.out.println("#### START PRINTING BlockChain ####");
-        for(int i = 0; i< recordList.size(); i++){
+        for (int i = 0; i < recordList.size(); i++) {
             System.out.println(" Record #: " + i);
             recordList.get(i).printBlockRecord();
             System.out.println("");
@@ -263,29 +264,61 @@ class BCstruct{
     }
 
     //Get the length of the blockchain.
-    public int getLength(){
+    public int getLength() {
         return recordList.size();
     }
 
     //Validate the entire blockchain.
     // this is done by checking the chain of previous hashes
     // and proof-of-work for each record.
-    public boolean validateBC(){
+    public boolean validateBC() {
         //We start at Block 1 (instead of 0) as we don't need to validate the dummy block.
-        for(int i = 0; i < this.recordList.size()-1; i++){
+        for (int i = 0; i < this.recordList.size() - 1; i++) {
 
-            if(!this.recordList.get(i).previousHash.equals(this.recordList.get(i+1).createBlockRecordHash())){
+            if (!this.recordList.get(i).previousHash.equals(this.recordList.get(i + 1).createBlockRecordHash())) {
                 //System.out.println(this.recordList.get(i).previousHash);
                 //System.out.println(this.recordList.get(i-1).createBlockRecordHash());
                 return false;
             }
-            if(!BCExecutor.verifyWork2(BCExecutor.difficulty,this.recordList.get(i))){
+            if (!BCExecutor.verifyWork2(BCExecutor.difficulty, this.recordList.get(i))) {
                 return false;
             }
         }
         return true;
     }
 
+    //Validate the entire blockchain.
+    // this is done by checking the chain of previous hashes
+    // and proof-of-work for each record.
+    public boolean validateVerboseBC() {
+        //We start at Block 1 (instead of 0) as we don't need to validate the dummy block.
+        System.out.println("Validating Blockchain:");
+        for (int i = 0; i < this.recordList.size() - 1; i++) {
+
+            int hashgood = 1;
+            int workgood = 1;
+            if (!this.recordList.get(i).previousHash.equals(this.recordList.get(i + 1).createBlockRecordHash())) {
+                //System.out.println(this.recordList.get(i).previousHash);
+                //System.out.println(this.recordList.get(i-1).createBlockRecordHash());
+                hashgood = 0;
+            }
+            if (!BCExecutor.verifyWork2(BCExecutor.difficulty, this.recordList.get(i))) {
+                workgood = 0;
+            }
+
+            int blocknum = this.recordList.size() - i;
+            if(hashgood == 1 && workgood == 1){
+                System.out.println("BLock " +  blocknum + ":  is valid");
+            } else if(hashgood == 0 && workgood == 1){
+                System.out.println("BLock " +  blocknum + ":  SHA-256 hash did not match previous block");
+            } else if(hashgood == 1 && workgood == 0){
+                System.out.println("BLock " +  blocknum + ":  Failed the proof-of-work");
+            } else if(hashgood == 0 && workgood == 0){
+                System.out.println("BLock " +  blocknum + ":  failed both SHA-256 and proof of work");
+            }
+        }
+        return true;
+    }
 }
 
 // BlockRecordComparator - provide a comparator for the Unverified Blocks priority queue.
@@ -324,6 +357,7 @@ class BlockRecord implements Serializable{
     String userID;
     String seq;
     String datasig;
+    String creditPID;
 
     BlockRecord(String patStr, String prevH, int uid){
         this(patStr, prevH, uid, UUID.randomUUID(),0);
@@ -367,6 +401,8 @@ class BlockRecord implements Serializable{
         System.out.println("Owner: " + this.userID);
         System.out.println("Sequence number: " + this.seq);
         System.out.println("Nonce: " + this.Nonce);
+        System.out.println("DataSig: " + this.datasig);
+        System.out.println("CreditPID: " + this.creditPID);
         System.out.println("Data: " + this.patientData.getPatientString());
         System.out.println(" *** End Block ***");
     }
@@ -1076,6 +1112,44 @@ class BCExecutor{
         if(this.pid == 0) {
             IOHelper.writeStringToFile("BlockchainLedger.json", IOHelper.getJSONFromObject(this.BC));
         }
+
+        goInteractive();
+    }
+
+    void goInteractive(){
+        BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
+        try {
+            String readline;
+            int exitloop = 0;
+            while (exitloop == 0){
+                System.out.print("Select: \"V - to verify the blockchain\", \" R - to read in a new records file\" or quit");
+                System.out.flush (); // Why? System.out flushes on newline so this shouldn't be necessary
+                readline = in.readLine ();
+
+                String instruction = readline.replaceAll("\\s", "").toLowerCase();
+                // "indexOf" can get a value anywhere in the string so that was removed.
+                switch (instruction){
+                    case "quit":
+                        exitloop = 1;
+                        break;
+                    case "V":
+                        this.BC.validateVerboseBC();
+                        break;
+                    case "R":
+                        System.out.print("Enter your filename:  ");
+                        System.out.flush (); // Why? System.out flushes on newline so this shouldn't be necessary
+                        readline = in.readLine ();
+                        this.Lfilename = readline;
+                        processLocalPatientLedger();
+                        break;
+                    default:
+                        System.out.println("Input \"" + instruction + "\" was not recognized");
+
+                }
+
+            }
+            System.out.println ("Cancelled by user request.");
+        } catch (IOException x) {x.printStackTrace ();}
     }
 
     void broadcastBC(){
@@ -1203,7 +1277,7 @@ class BCExecutor{
                     if(SecurityHelper.verifySignedData(bce.neighs[owner].pubKey, br.getDataSig(), br.patientData.getPatientString().getBytes(StandardCharsets.UTF_8))){
                         if(bce.BC.checkPreviousHashMatch(br)) {
                             if(bce.doWork2(BCExecutor.difficulty, br, false)) {
-                                if (bce.BC.addRecord(br)) {
+                                if (bce.BC.addRecord(br, bce.pid)) {
                                     bce.broadcastBC();
                                 }
                             }

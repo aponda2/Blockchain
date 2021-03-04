@@ -223,7 +223,7 @@ Yes                    </b></td></tr>
 
 <tr> <td align="left"><b>
 <i> Work </i> method periodically checks to see if the block has already been verified </b></td><td align="left"><b>
-No                    </b></td></tr>
+Yes                    </b></td></tr>
 
 
 <tr> <td align="left"><b>
@@ -232,11 +232,11 @@ No                    </b></td></tr>
 
 <tr> <td align="left"><b>
 Nodes compete to verify blocks </b></td><td align="left"><b>
-No                    </b></td></tr>
+Yes                    </b></td></tr>
 
 <tr> <td align="left"><b>
 A priority queue was implemented </b></td><td align="left"><b>
-No                    </b></td></tr>
+Yes                    </b></td></tr>
 
 <tr> <td align="left"><b>
 Blocks are fully listed after console command to do so </b></td><td align="left"><b>
@@ -252,12 +252,12 @@ No                    </b></td></tr>
 
 <tr> <td align="left"><b>
 Credit is given to nodes for validating blocks  </b></td><td align="left"><b>
-No                    </b></td></tr>
+Yes                    </b></td></tr>
 
 
 <tr> <td align="left"><b>
 Blocks are fully verified with SHA256 and signatures </b></td><td align="left"><b>
-No                    </b></td></tr>
+Yes                    </b></td></tr>
 
 
 <tr> <td align="left"><b>
@@ -307,11 +307,11 @@ No                    </b></td></tr>
 
 <tr> <td align="left"><b>
 Same length / different blockID handled </b></td><td align="left"><b>
-No                    </b></td></tr>
+yes                    </b></td></tr>
 
 <tr> <td align="left"><b>
 You have code to verify an entire blockchain </b></td><td align="left"><b>
-No                    </b></td></tr>
+yes                    </b></td></tr>
 
 <tr> <td align="left"><b>
 Different length blockchain handled </b></td><td align="left"><b>
@@ -334,7 +334,7 @@ No                    </b></td></tr>
 
 <tr> <td align="left"><b>
 Real work has been implemented based on hash value </b></td><td align="left"><b>
-No                    </b></td></tr>
+yes                    </b></td></tr>
 
 <tr> <td align="left"><b>
 Use the dataHash field to verify local records against cache </b></td><td align="left"><b>
@@ -376,9 +376,12 @@ Yes                    </b></td></tr>
 
 </font></p><h3><font face="Cambria" size="3"> Your special comments to me, only if needed: </font></h3><font face="Cambria" size="3">
 
-Comment one <p>
+MY real work algorithm looks for leading n bits that are all 0's in the hash. Look at the ledger previous hashes you'll
+    see that they all follow the pattern! There is code of course to verify the proof of work too.<p>
 
-Comment two, etc. </p><p>
+The verify code for the whole Blockchain looks at the hashes, the sig of data and the proof of work. This is actually called
+    each time a new blockchain is received (i probably to this too often) to ensure it's not a broken or fake blockchain.
+    , etc. </p><p>
 
 
 </p></font></font></font></body></html>
