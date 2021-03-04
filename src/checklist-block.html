@@ -81,16 +81,16 @@ Maybe                    </b></td></tr>
 
 <tr> <td align="left"><b>
 "javac *.java" (twice, with appropriate flags) in one directory compiles all code from console window. </b></td><td align="left"><b>
-No                    </b></td></tr>
+Maybe                    </b></td></tr>
 
 
 <tr> <td align="left"><b>
 System will run with supplied batch files </b></td><td align="left"><b>
-No                    </b></td></tr>
+Maybe                    </b></td></tr>
 
 <tr> <td align="left"><b>
 Process 2 startup triggers the running of the whole system </b></td><td align="left"><b>
-No                    </b></td></tr>
+Yes                    </b></td></tr>
 
 <tr> <td align="left"><b>
 Provided clear console log file for your running processes </b></td><td align="left"><b>
@@ -108,7 +108,7 @@ Yes                    </b></td></tr>
 
 <tr> <td align="left"><b>
 Runs from the master grading script and sub-scripts?</b></td><td align="left"><b>
-No                    </b></td></tr>
+MAybe                    </b></td></tr>
 
 <tr> <td align="left"><b>
 Writes final version of the ledger to BlockchainLedger.json from process 0 </b></td><td align="left"><b>
@@ -240,7 +240,7 @@ Yes                    </b></td></tr>
 
 <tr> <td align="left"><b>
 Blocks are fully listed after console command to do so </b></td><td align="left"><b>
-No                    </b></td></tr>
+Yes                    </b></td></tr>
 
 <tr> <td align="left"><b>
 Records are listed one to a line </b></td><td align="left"><b>
@@ -248,7 +248,7 @@ No                    </b></td></tr>
 
 <tr> <td align="left"><b>
 Blockchain is validated after console command </b></td><td align="left"><b>
-No                    </b></td></tr>
+Yes                    </b></td></tr>
 
 <tr> <td align="left"><b>
 Credit is given to nodes for validating blocks  </b></td><td align="left"><b>
@@ -380,7 +380,17 @@ MY real work algorithm looks for leading n bits that are all 0's in the hash. Lo
     see that they all follow the pattern! There is code of course to verify the proof of work too.<p>
 
 The verify code for the whole Blockchain looks at the hashes, the sig of data and the proof of work. This is actually called
-    each time a new blockchain is received (i probably to this too often) to ensure it's not a broken or fake blockchain.
+    each time a new blockchain is received (i probably to this too often) to ensure it's not a broken or fake blockchain. <p>
+
+    For command line options please wait about 4 minutes for the automated mode to end. Also, at the beginning of my program exececution theres
+    a bug where there some stack traces for incorrect RSA keys, those can be ignored, its just a timing issue of trying to use a key when
+    it doesn't exist yet but sorts itself out... a Todo for the future.<p>
+
+    Still workign on comments might be another submission soon<p>
+
+    I didn't have this working on windows so didn't test the master grading bat file but I think it would work <p>
+
+    Not sure what the compile javac *.java meant but if a classpath for gson is not specified it will fail <p>
     , etc. </p><p>
 
 

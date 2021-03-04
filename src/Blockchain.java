@@ -1122,7 +1122,10 @@ class BCExecutor{
             String readline;
             int exitloop = 0;
             while (exitloop == 0){
-                System.out.print("Select: \"V - to verify the blockchain\", \" R - to read in a new records file\" or quit");
+                System.out.print("Select: \"V - to verify the blockchain\"," +
+                        "\n \" R - to read in a new records file\" \n" +
+                        "L - to print the blockchain \n" +
+                        "or quit: ");
                 System.out.flush (); // Why? System.out flushes on newline so this shouldn't be necessary
                 readline = in.readLine ();
 
@@ -1132,16 +1135,18 @@ class BCExecutor{
                     case "quit":
                         exitloop = 1;
                         break;
-                    case "V":
+                    case "v":
                         this.BC.validateVerboseBC();
                         break;
-                    case "R":
+                    case "r":
                         System.out.print("Enter your filename:  ");
                         System.out.flush (); // Why? System.out flushes on newline so this shouldn't be necessary
                         readline = in.readLine ();
                         this.Lfilename = readline;
                         processLocalPatientLedger();
                         break;
+                    case "l":
+                        this.BC.printBC();
                     default:
                         System.out.println("Input \"" + instruction + "\" was not recognized");
 
