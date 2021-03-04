@@ -277,7 +277,7 @@ class BCstruct{
             if(!this.recordList.get(i).previousHash.equals(this.recordList.get(i-1).createBlockRecordHash())){
                 return false;
             }
-            if(BCExecutor.verifyWork2(BCExecutor.difficulty,this.recordList.get(i))){
+            if(!BCExecutor.verifyWork2(BCExecutor.difficulty,this.recordList.get(i))){
                 return false;
             }
         }
@@ -1126,7 +1126,7 @@ class BCExecutor{
                     System.out.println("ERROR: invalid type in broadcastHelper");
                     break;
                 }
-                System.out.println("Trying to connect to: " + neighs[i].hostname + ":" + port);
+                //System.out.println("Trying to connect to: " + neighs[i].hostname + ":" + port);
                 sock = new Socket(neighs[i].hostname, port);
                 out = new PrintStream(sock.getOutputStream());
                 out.print(message);
