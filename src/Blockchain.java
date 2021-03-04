@@ -272,9 +272,11 @@ class BCstruct{
     // and proof-of-work for each record.
     public boolean validateBC(){
         //We start at Block 1 (instead of 0) as we don't need to validate the dummy block.
-        for(int i = 1; i < this.recordList.size(); i++){
+        for(int i = 0; i < this.recordList.size()-1; i++){
 
-            if(!this.recordList.get(i).previousHash.equals(this.recordList.get(i-1).createBlockRecordHash())){
+            if(!this.recordList.get(i).previousHash.equals(this.recordList.get(i+1).createBlockRecordHash())){
+                //System.out.println(this.recordList.get(i).previousHash);
+                //System.out.println(this.recordList.get(i-1).createBlockRecordHash());
                 return false;
             }
             if(!BCExecutor.verifyWork2(BCExecutor.difficulty,this.recordList.get(i))){
@@ -1413,11 +1415,15 @@ class BCExecutor{
             BCstruct newBC = IOHelper.getObjectFromJSON(request.toString(), BCstruct.class);
 
 
-            if(newBC.getLength() > this.bce.BC.getLength() && newBC.validateBC()){
-                this.bce.BC = newBC;
-                System.out.println("Received updated BC: Replacing local BC");
+            if(newBC.getLength() > this.bce.BC.getLength()){
+                if (newBC.validateBC()) {
+                    this.bce.BC = newBC;
+                    System.out.println("Received updated BC: Replacing local BC");
+                } else {
+                    System.out.println("Received updated BC: Rejecting it as invalid");
+                }
             } else {
-                System.out.println("Received updated BC: Rejecting it as invalid or not long enough");
+                System.out.println("Received updated BC: Rejecting as not long enough");
             }
 
 
