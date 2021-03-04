@@ -53,7 +53,7 @@ import java.util.concurrent.PriorityBlockingQueue;
 //Blockhain class
 public class Blockchain {
     public static void main(String args[]) throws IOException, IllegalArgumentException {
-        int serverMode = 0; // 0 = timed init; 1 = PID 2 init.
+        int serverMode = 1; // 0 = timed init; 1 = PID 2 init.
 
         int q_len = 6;
         int basekeyport = 4710;
@@ -1355,7 +1355,9 @@ class BCExecutor{
             System.out.println(SecurityHelper.base64EncodeBytes(bce.neighs[rcvpid].pubKey.getEncoded()));
 
             if(bce.servermode == 1 && rcvpid == 2){
-                bce.broadcastPublicKey();
+                if (bce.pid != 2) {
+                    bce.broadcastPublicKey();
+                }
                 bce.startUVBProcessor();
                 bce.processLocalPatientLedger();
             }
