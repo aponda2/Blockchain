@@ -53,7 +53,7 @@ import java.util.concurrent.PriorityBlockingQueue;
 //Blockhain class
 public class Blockchain {
     public static void main(String args[]) throws IOException, IllegalArgumentException {
-        int serverMode = 1; // 0 = timed init; 1 = PID 2 init.
+        int serverMode = 0; // 0 = timed init; 1 = PID 2 init.
 
         int q_len = 6;
         int basekeyport = 4710;
