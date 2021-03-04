@@ -321,6 +321,7 @@ class BlockRecord implements Serializable{
     String timestamp;
     String userID;
     String seq;
+    String datasig;
 
     BlockRecord(String patStr, String prevH, int uid){
         this(patStr, prevH, uid, UUID.randomUUID(),0);
@@ -417,10 +418,10 @@ class BlockRecord implements Serializable{
         // BlockID; PreviousHash; myProcessID (TBD); timestamp; nonce; data.
         sb.append(this.BlockID.toString());
         sb.append(this.previousHash);
-        sb.append(this.userID);
-        sb.append(this.timestamp);
+        //sb.append(this.userID);
+        //sb.append(this.timestamp);
         sb.append(this.Nonce);
-        sb.append(this.seq);
+        //sb.append(this.seq);
 
         byte[] sbbyte = sb.toString().getBytes(StandardCharsets.US_ASCII);
         byte[] databyte = patientData.getPatientString().getBytes(StandardCharsets.US_ASCII);
@@ -470,6 +471,14 @@ class BlockRecord implements Serializable{
         }
 
         return myHash;
+    }
+
+    void signBlockData(PrivateKey privkey) throws InvalidKeyException, NoSuchAlgorithmException, NoSuchProviderException, SignatureException {
+        this.datasig = SecurityHelper.base64EncodeBytes(SecurityHelper.signData(this.patientData.getPatientString().getBytes(StandardCharsets.UTF_8), privkey));
+    }
+
+    public byte[] getDataSig(){
+        return SecurityHelper.base64DecodeString(this.datasig);
     }
 
     public String getNonceToHexString(byte[] buff){
@@ -789,7 +798,7 @@ class BCExecutor{
     int servermode;
 
     public static final int VERBOSE = 1;  // if verbose = 1 server will print more output
-    public static final int difficulty = 21;
+    public static final int difficulty = 22;
 
     // store local copies of the ports for easy reference.
     int keyport;
@@ -866,12 +875,13 @@ class BCExecutor{
     // Here int difficulty is the number of leading zeros
     // the higher the difficulty the harder the problem
     // difficulty: range(1 - 256) but never use 256 ...
-    public long doWork2(int dif, BlockRecord newblock, boolean runslow){
+    public boolean doWork2(int dif, BlockRecord newblock, boolean runslow){
         byte[] nonce = new byte[16];
         String hash;
         SecureRandom random = new SecureRandom();
 
-        long counter = 0;
+        int counter = 0;
+        long fullcounter = 0;
 
 
         long intcomp = 1;
@@ -906,10 +916,22 @@ class BCExecutor{
                     System.out.println("Interrupted: " + e.getMessage());
                     Thread.currentThread().interrupt();
                 }
+                counter = counter * 100000;
+            }
+
+            if (counter > 500000){
+                if(!this.BC.checkPreviousHashMatch(newblock)){
+                    System.out.println("Stop Work: Block has already been validated or is now invalid");
+                    return false;
+                }
+                fullcounter += counter;
+                counter = 0;
             }
         }
-        //System.out.println("End!!");
-        return counter;
+
+        fullcounter += counter;
+        System.out.println("Work took  " + fullcounter + "  Hashes!!");
+        return true;
 
     }
 
@@ -977,6 +999,12 @@ class BCExecutor{
             String prevHash = BC.getLastestBlock().createBlockRecordHash();
             //System.out.println( BC.getLastestBlock().getBlockID());
             newblock = new BlockRecord(records[i], prevHash, pid, uuid, seq);
+            try {
+                newblock.signBlockData(this.mykey.getPrivate());
+            } catch (Exception e){
+                System.out.println(e.getMessage());
+                continue;
+            }
 
             //System.out.println(doWork2(difficulty, newblock, false));
             //System.out.println(newblock.createBlockRecordHash());
@@ -1155,14 +1183,37 @@ class BCExecutor{
                     break;
                 }
 
-                if(bce.BC.checkPreviousHashMatch(br)) {
-                    bce.doWork2(bce.difficulty, br, false);
-                    if (bce.BC.addRecord(br)) {
-                        bce.broadcastBC();
-                    }
+                //validate data signature
+                int owner;
+                if(br.userID.equals("PID0")){
+                    owner = 0;
+                }else if(br.userID.equals("PID1")){
+                    owner = 1;
+                }else if(br.userID.equals("PID2")){
+                    owner = 2;
                 } else {
-                    System.out.println("Discarding UVB, hash doesn't match previous hash");
+                    System.out.println("ERROR: Could not find valid owner: " + br.userID);
+                    continue;
                 }
+
+                // Verify the data signature, then the previous HAsh. If both ok verify (doWork).
+                try{
+                    if(SecurityHelper.verifySignedData(bce.neighs[owner].pubKey, br.getDataSig(), br.patientData.getPatientString().getBytes(StandardCharsets.UTF_8))){
+                        if(bce.BC.checkPreviousHashMatch(br)) {
+                            if(bce.doWork2(BCExecutor.difficulty, br, false)) {
+                                if (bce.BC.addRecord(br)) {
+                                    bce.broadcastBC();
+                                }
+                            }
+                        } else {
+                            System.out.println("Discarding UVB, hash doesn't match previous hash");
+                        }
+                    }
+                } catch (Exception e){
+                    System.out.println(e.getMessage());
+                    e.printStackTrace();
+                }
+
             }
         }
 
