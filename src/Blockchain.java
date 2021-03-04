@@ -1057,7 +1057,7 @@ class BCExecutor{
 
         // Sleep XX seconds before writing blockchain to console as peer updates may still be coming in.
         try {
-            Thread.sleep(30000);
+            Thread.sleep(60000);
         } catch (InterruptedException e) {
             System.out.println("Interrupted: " + e.getMessage());
             Thread.currentThread().interrupt();
